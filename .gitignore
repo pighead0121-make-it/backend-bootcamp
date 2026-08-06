@@ -1,0 +1,23 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Coverage
+*.out
+
+# IDE
+.vscode/
+
+# macOS
+.DS_Store
+
+# Environment
+.env
+.env.*
+!.env.example

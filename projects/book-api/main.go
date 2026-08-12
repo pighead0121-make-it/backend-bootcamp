@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 )
 
 func main() {
@@ -60,6 +62,31 @@ func main() {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
+	})
+
+	http.HandleFunc("/books/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		id, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/books/"))
+		if err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		if id <= 0 {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		for _, book := range books {
+			if id == book.ID {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(book)
+				return
+			}
+		}
+		http.Error(w, "Not Found", http.StatusNotFound)
 	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))

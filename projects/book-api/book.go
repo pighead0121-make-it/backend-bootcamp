@@ -14,4 +14,4 @@ var books = []Book{
 	},
 }
 
-var nextBookID int = 2
+var nextBookID = 2

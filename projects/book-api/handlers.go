@@ -17,6 +17,25 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "OK")
 }
 
+func infoHandler(w http.ResponseWriter, r *http.Request) {
+	type info struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	}
+
+	appInfo := info{
+		Name:    "book-api",
+		Version: "1.0.0",
+	}
+
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(appInfo)
+}
+
 func booksHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		w.Header().Set("Content-Type", "application/json")

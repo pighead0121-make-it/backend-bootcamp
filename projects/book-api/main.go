@@ -14,6 +14,8 @@ func main() {
 
 	http.HandleFunc("/health", healthHandler)
 
+	http.HandleFunc("/info", infoHandler)
+
 	http.HandleFunc("/books", booksHandler)
 
 	http.HandleFunc("/books/", bookIDHandler)

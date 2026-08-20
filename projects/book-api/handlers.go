@@ -24,7 +24,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	appInfo := info{
-		Name:    "book-api",
+		Name:    "docker-book-api",
 		Version: "1.0.0",
 	}
 

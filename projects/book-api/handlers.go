@@ -39,13 +39,48 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func booksHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	switch r.Method {
+	case http.MethodGet:
+		author := r.URL.Query().Get("author")
+		limitString := r.URL.Query().Get("limit")
+		sort := r.URL.Query().Get("sort")
 
-	if r.Method == http.MethodGet {
-		rows, err := db.Query("SELECT id, title, author FROM books")
+		var rows *sql.Rows
+		var err error
+		var limit int
+
+		query := "SELECT id, title, author FROM books"
+		args := []any{}
+
+		if author != "" {
+			args = append(args, author)
+			query += fmt.Sprintf(" WHERE author = $%d", len(args))
+		}
+
+		switch sort {
+		case "asc":
+			query += " ORDER BY id ASC"
+		case "desc":
+			query += " ORDER BY id DESC"
+		case "":
+
+		default:
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		if limitString != "" {
+			limit, err = strconv.Atoi(limitString)
+			if err != nil || limit <= 0 {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+			args = append(args, limit)
+			query += fmt.Sprintf(" LIMIT $%d", len(args))
+		}
+
+		rows, err = db.Query(query, args...)
+
 		if err != nil {
 			fmt.Println("SQL Error:", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -54,7 +89,7 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 
 		defer rows.Close()
 
-		var result []Book
+		result := []Book{}
 
 		for rows.Next() {
 			var book Book
@@ -71,14 +106,17 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			result = append(result, book)
 		}
+		if err := rows.Err(); err != nil {
+			fmt.Println("SQL Error:", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
-
 		return
-	}
 
-	if r.Method == http.MethodPost {
+	case http.MethodPost:
 		var book Book
 
 		err := json.NewDecoder(r.Body).Decode(&book)
@@ -103,28 +141,23 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(book)
 		return
+
+	default:
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
 	}
 }
 
 func bookIDHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodPut && r.Method != http.MethodDelete {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	id, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/books/"))
 
-	if err != nil {
+	if err != nil || id <= 0 {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
 
-	if id <= 0 {
-		http.Error(w, "Bad Request", http.StatusBadRequest)
-		return
-	}
-
-	if r.Method == http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
 		var book Book
 
 		err = db.QueryRow(
@@ -150,9 +183,8 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(book)
 		return
-	}
 
-	if r.Method == http.MethodPut {
+	case http.MethodPut:
 		var book Book
 
 		err := json.NewDecoder(r.Body).Decode(&book)
@@ -186,9 +218,8 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(book)
 		return
-	}
 
-	if r.Method == http.MethodDelete {
+	case http.MethodDelete:
 		var deletedID int
 
 		err := db.QueryRow(
@@ -208,6 +239,10 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+		return
+
+	default:
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 }

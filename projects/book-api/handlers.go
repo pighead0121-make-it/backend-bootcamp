@@ -49,12 +49,12 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var limit int
 
-		query := "SELECT id, title, author FROM books"
+		query := "SELECT b.id, b.title, a.name AS author FROM books_v2 b JOIN authors a ON b.author_id = a.id"
 		args := []any{}
 
 		if author != "" {
 			args = append(args, author)
-			query += fmt.Sprintf(" WHERE author = $%d", len(args))
+			query += fmt.Sprintf(" WHERE a.name = $%d", len(args))
 		}
 
 		switch sort {
@@ -118,6 +118,7 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var book Book
+		var authorID int
 
 		err := json.NewDecoder(r.Body).Decode(&book)
 		if err != nil {
@@ -126,9 +127,25 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		err = db.QueryRow(
-			"INSERT INTO books (title, author) VALUES ($1, $2) RETURNING id",
-			book.Title,
+			"SELECT id FROM authors WHERE name = $1",
 			book.Author,
+		).Scan(&authorID)
+
+		if err == sql.ErrNoRows {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		if err != nil {
+			fmt.Println("SQL Error:", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		err = db.QueryRow(
+			"INSERT INTO books_v2 (title, author_id) VALUES ($1, $2) RETURNING id",
+			book.Title,
+			authorID,
 		).Scan(&book.ID)
 
 		if err != nil {
@@ -161,7 +178,7 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 		var book Book
 
 		err = db.QueryRow(
-			"SELECT id, title, author FROM books WHERE id = $1",
+			"SELECT b.id, b.title, a.name AS author FROM books_v2 b JOIN authors a ON b.author_id = a.id WHERE b.id = $1",
 			id,
 		).Scan(
 			&book.ID,
@@ -186,22 +203,37 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPut:
 		var book Book
+		var authorID int
 
-		err := json.NewDecoder(r.Body).Decode(&book)
+		err = json.NewDecoder(r.Body).Decode(&book)
 		if err != nil {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 
 		err = db.QueryRow(
-			"UPDATE books SET title = $1, author = $2 WHERE id = $3 RETURNING id, title, author",
-			book.Title,
+			"SELECT id FROM authors WHERE name = $1",
 			book.Author,
+		).Scan(&authorID)
+
+		if err == sql.ErrNoRows {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		if err != nil {
+			fmt.Println("SQL Error:", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		err = db.QueryRow(
+			"UPDATE books_v2 SET title = $1, author_id = $2 WHERE id = $3 RETURNING id",
+			book.Title,
+			authorID,
 			id,
 		).Scan(
 			&book.ID,
-			&book.Title,
-			&book.Author,
 		)
 
 		if err == sql.ErrNoRows {
@@ -222,8 +254,8 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		var deletedID int
 
-		err := db.QueryRow(
-			"DELETE FROM books WHERE id = $1 RETURNING id",
+		err = db.QueryRow(
+			"DELETE FROM books_v2 WHERE id = $1 RETURNING id",
 			id,
 		).Scan(&deletedID)
 

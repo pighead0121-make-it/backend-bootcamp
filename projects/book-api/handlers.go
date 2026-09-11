@@ -49,7 +49,7 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var limit int
 
-		query := "SELECT b.id, b.title, a.name AS author FROM books_v2 b JOIN authors a ON b.author_id = a.id"
+		query := "SELECT b.id, b.title, a.name AS author FROM books b JOIN authors a ON b.author_id = a.id"
 		args := []any{}
 
 		if author != "" {
@@ -126,14 +126,30 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = db.QueryRow(
+		tx, err := db.Begin()
+		if err != nil {
+			fmt.Println("SQL Error:", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback()
+
+		err = tx.QueryRow(
 			"SELECT id FROM authors WHERE name = $1",
 			book.Author,
 		).Scan(&authorID)
 
 		if err == sql.ErrNoRows {
-			http.Error(w, "Bad Request", http.StatusBadRequest)
-			return
+			err = tx.QueryRow(
+				"INSERT INTO authors (name) VALUES ($1) RETURNING id",
+				book.Author,
+			).Scan(&authorID)
+
+			if err != nil {
+				fmt.Println("SQL Error:", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 		}
 
 		if err != nil {
@@ -142,12 +158,19 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = db.QueryRow(
-			"INSERT INTO books_v2 (title, author_id) VALUES ($1, $2) RETURNING id",
+		err = tx.QueryRow(
+			"INSERT INTO books (title, author_id) VALUES ($1, $2) RETURNING id",
 			book.Title,
 			authorID,
 		).Scan(&book.ID)
 
+		if err != nil {
+			fmt.Println("SQL Error:", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		err = tx.Commit()
 		if err != nil {
 			fmt.Println("SQL Error:", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -178,7 +201,7 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 		var book Book
 
 		err = db.QueryRow(
-			"SELECT b.id, b.title, a.name AS author FROM books_v2 b JOIN authors a ON b.author_id = a.id WHERE b.id = $1",
+			"SELECT b.id, b.title, a.name AS author FROM books b JOIN authors a ON b.author_id = a.id WHERE b.id = $1",
 			id,
 		).Scan(
 			&book.ID,
@@ -228,7 +251,7 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		err = db.QueryRow(
-			"UPDATE books_v2 SET title = $1, author_id = $2 WHERE id = $3 RETURNING id",
+			"UPDATE books SET title = $1, author_id = $2 WHERE id = $3 RETURNING id",
 			book.Title,
 			authorID,
 			id,
@@ -242,7 +265,7 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err != nil {
-			fmt.Println("SQL error:", err)
+			fmt.Println("SQL Error:", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
@@ -255,7 +278,7 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 		var deletedID int
 
 		err = db.QueryRow(
-			"DELETE FROM books_v2 WHERE id = $1 RETURNING id",
+			"DELETE FROM books WHERE id = $1 RETURNING id",
 			id,
 		).Scan(&deletedID)
 

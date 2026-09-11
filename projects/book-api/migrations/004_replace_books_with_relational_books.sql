@@ -1,0 +1,2 @@
+DROP TABLE books;
+ALTER TABLE books_v2 RENAME TO books;

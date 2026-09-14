@@ -1,18 +1,22 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pighead0121-make-it/backend-bootcamp/projects/book-api/database"
 )
 
-var db *sql.DB
-
 func main() {
+
+	db, err := database.Connect()
+	if err != nil {
+		log.Fatal("failed to connect to database:", err)
+	}
+	defer db.Close()
+
+	log.Println("connected to database")
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Hello Backend")
@@ -22,41 +26,13 @@ func main() {
 
 	http.HandleFunc("/info", infoHandler)
 
-	http.HandleFunc("/books", booksHandler)
+	http.HandleFunc("/books", func(w http.ResponseWriter, r *http.Request) {
+		booksHandler(db, w, r)
+	})
 
-	http.HandleFunc("/books/", bookIDHandler)
-
-	host := os.Getenv("DB_HOST")
-	port := os.Getenv("DB_PORT")
-	user := os.Getenv("DB_USER")
-	name := os.Getenv("DB_NAME")
-	password := os.Getenv("DB_PASSWORD")
-
-	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s",
-		user,
-		password,
-		host,
-		port,
-		name,
-	)
-
-	var err error
-	db, err = sql.Open("pgx", dsn)
-	if err != nil {
-		fmt.Println("failed to open database:", err)
-		return
-	}
-
-	defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		fmt.Println("failed to connect to database:", err)
-		return
-	}
-
-	fmt.Println("connected to database")
+	http.HandleFunc("/books/", func(w http.ResponseWriter, r *http.Request) {
+		bookIDHandler(db, w, r)
+	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

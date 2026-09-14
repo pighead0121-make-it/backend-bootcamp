@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+func findOrCreateAuthor(tx *sql.Tx, author string) (int, error) {
+	var authorID int
+
+	err := tx.QueryRow(
+		"SELECT id FROM authors WHERE name = $1",
+		author,
+	).Scan(&authorID)
+
+	if err == sql.ErrNoRows {
+		err = tx.QueryRow(
+			"INSERT INTO authors (name) VALUES ($1) RETURNING id",
+			author,
+		).Scan(&authorID)
+
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	if err != nil {
+		return 0, err
+	}
+
+	return authorID, nil
+}
+
 func writeJSONErr(w http.ResponseWriter, message string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -47,7 +73,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(appInfo)
 }
 
-func booksHandler(w http.ResponseWriter, r *http.Request) {
+func booksHandler(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		author := r.URL.Query().Get("author")
@@ -127,7 +153,6 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var book Book
-		var authorID int
 
 		err := json.NewDecoder(r.Body).Decode(&book)
 		if err != nil {
@@ -155,24 +180,7 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		defer tx.Rollback()
 
-		err = tx.QueryRow(
-			"SELECT id FROM authors WHERE name = $1",
-			book.Author,
-		).Scan(&authorID)
-
-		if err == sql.ErrNoRows {
-			err = tx.QueryRow(
-				"INSERT INTO authors (name) VALUES ($1) RETURNING id",
-				book.Author,
-			).Scan(&authorID)
-
-			if err != nil {
-				fmt.Println("SQL Error:", err)
-				writeJSONErr(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
-		}
-
+		authorID, err := findOrCreateAuthor(tx, book.Author)
 		if err != nil {
 			fmt.Println("SQL Error:", err)
 			writeJSONErr(w, "Internal Server Error", http.StatusInternalServerError)
@@ -209,7 +217,7 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func bookIDHandler(w http.ResponseWriter, r *http.Request) {
+func bookIDHandler(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/books/"))
 
 	if err != nil || id <= 0 {
@@ -247,7 +255,6 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPut:
 		var book Book
-		var authorID int
 
 		err = json.NewDecoder(r.Body).Decode(&book)
 		if err != nil {
@@ -275,24 +282,7 @@ func bookIDHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		defer tx.Rollback()
 
-		err = tx.QueryRow(
-			"SELECT id FROM authors WHERE name = $1",
-			book.Author,
-		).Scan(&authorID)
-
-		if err == sql.ErrNoRows {
-			err = tx.QueryRow(
-				"INSERT INTO authors (name) VALUES ($1) RETURNING id",
-				book.Author,
-			).Scan(&authorID)
-
-			if err != nil {
-				fmt.Println("SQL Error:", err)
-				writeJSONErr(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
-		}
-
+		authorID, err := findOrCreateAuthor(tx, book.Author)
 		if err != nil {
 			fmt.Println("SQL Error:", err)
 			writeJSONErr(w, "Internal Server Error", http.StatusInternalServerError)

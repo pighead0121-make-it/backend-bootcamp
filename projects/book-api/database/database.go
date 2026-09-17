@@ -3,25 +3,20 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"os"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pighead0121-make-it/backend-bootcamp/projects/book-api/config"
 )
 
-func Connect() (*sql.DB, error) {
-	user := os.Getenv("DB_USER")
-	password := os.Getenv("DB_PASSWORD")
-	host := os.Getenv("DB_HOST")
-	port := os.Getenv("DB_PORT")
-	name := os.Getenv("DB_NAME")
+func Connect(configDB config.Config) (*sql.DB, error) {
 
 	dsn := fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s",
-		user,
-		password,
-		host,
-		port,
-		name,
+		configDB.DBUser,
+		configDB.DBPassword,
+		configDB.DBHost,
+		configDB.DBPort,
+		configDB.DBName,
 	)
 
 	db, err := sql.Open("pgx", dsn)

@@ -5,12 +5,18 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/pighead0121-make-it/backend-bootcamp/projects/book-api/config"
 	"github.com/pighead0121-make-it/backend-bootcamp/projects/book-api/database"
 )
 
 func main() {
 
-	db, err := database.Connect()
+	configDB, err := config.Load()
+	if err != nil {
+		log.Fatal("failed to load config:", err)
+	}
+
+	db, err := database.Connect(configDB)
 	if err != nil {
 		log.Fatal("failed to connect to database:", err)
 	}

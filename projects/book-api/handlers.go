@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -154,8 +155,18 @@ func booksHandler(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var book Book
 
-		err := json.NewDecoder(r.Body).Decode(&book)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+
+		err := decoder.Decode(&book)
 		if err != nil {
+			writeJSONErr(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		var extra any
+		err = decoder.Decode(&extra)
+		if err != io.EOF {
 			writeJSONErr(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
@@ -256,8 +267,18 @@ func bookIDHandler(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		var book Book
 
-		err = json.NewDecoder(r.Body).Decode(&book)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+
+		err := decoder.Decode(&book)
 		if err != nil {
+			writeJSONErr(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		var extra any
+		err = decoder.Decode(&extra)
+		if err != io.EOF {
 			writeJSONErr(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
